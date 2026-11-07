@@ -1,13 +1,16 @@
 /**
  * Host half of dsh-restart.
  *
- * Registers one human `/restart` command and one HTTP entry point for the
- * sidebar row. Both call the same guard-then-orchestrate path so the UI and the
- * command can never drift apart. The restart itself lives in `restart.js`.
+ * Registers one human `/restart` command and the HTTP entry points the browser
+ * half uses: one restart request and one locale report. The browser reports its
+ * active UI language so the Host can re-register the command with matching copy
+ * — third-party command catalog rows are not localized by the browser itself.
+ * The restart itself lives in `restart.js`.
  *
  * @module dsh-restart/index
  */
 
+import { FALLBACK_LANGUAGE, messageFor, normalizeLanguage } from './messages.js'
 import {
   HOST_EXIT_DELAY_MS,
   buildTargets,
@@ -22,8 +25,9 @@ export const name = 'dsh-restart'
 /** The slash-command registry must exist before the command can be offered. */
 export const inject = ['commands']
 
-/** Browser half's only Host entry point. */
-const ROUTE_PATH = '/api/dsh-restart/restart'
+/** Browser half's entry points. */
+const RESTART_ROUTE = '/api/dsh-restart/restart'
+const LANGUAGE_ROUTE = '/api/dsh-restart/locale'
 
 function json(value) {
   return Response.json(value, { headers: { 'cache-control': 'no-store' } })
@@ -37,8 +41,20 @@ function messageOf(error) {
  * @param {import('@deepseek-ai/cordis').Context} ctx
  */
 export function apply(ctx) {
-  /** Scheduled-restart state: one restart at a time, one pending exit timer. */
-  const state = { active: false, timer: undefined }
+  /**
+   * Plugin state: one restart at a time, one pending exit timer, the language the
+   * browser last reported, and the current command registration.
+   */
+  const state = {
+    active: false,
+    timer: undefined,
+    disposed: false,
+    language: FALLBACK_LANGUAGE,
+    disposeCommand: undefined,
+  }
+
+  /** Localized copy in the language the browser last reported. */
+  const copy = (key, ...args) => messageFor(state.language, key, ...args)
 
   ctx.effect(() => () => {
     if (state.timer !== undefined) {
@@ -46,6 +62,14 @@ export function apply(ctx) {
       state.timer = undefined
     }
   }, 'dsh-restart: pending exit timer')
+
+  ctx.effect(() => () => {
+    state.disposed = true
+    if (state.disposeCommand !== undefined) {
+      state.disposeCommand()
+      state.disposeCommand = undefined
+    }
+  }, 'dsh-restart: command registration')
 
   /** Sessions whose Agent is mid-turn; a restart would interrupt them. */
   const runningSessions = async () => {
@@ -64,30 +88,20 @@ export function apply(ctx) {
   /**
    * Shared operation for the command and the sidebar row.
    *
-   * @returns {Promise<{ ok: true, helperPid?: number } | { ok: false, code: string, message: string }>}
+   * @returns {Promise<{ ok: true, helperPid?: number } | { ok: false, code: string, message: string, count?: number }>}
    */
   const requestRestart = async () => {
-    if (state.active) {
-      return {
-        ok: false,
-        code: 'already-restarting',
-        message: '重启已在进行中。/ A restart is already in progress.',
-      }
-    }
+    if (state.active) return { ok: false, code: 'already-restarting', message: copy('already') }
 
     const host = detectHost()
-    if (host.ok !== true) return { ok: false, code: host.code, message: host.message }
+    if (host.ok !== true) {
+      const key = host.code === 'unsupported-platform' ? 'unsupportedPlatform' : 'unsupportedHost'
+      return { ok: false, code: host.code, message: copy(key) }
+    }
 
     const running = await runningSessions()
     if (running > 0) {
-      return {
-        ok: false,
-        code: 'busy',
-        count: running,
-        // Host strings reach the conversation verbatim, so they carry both baseline locales.
-        message: `有 ${running} 个任务正在运行，已取消重启。请等待任务结束后重试。`
-          + ` / ${running} running task(s); restart cancelled. Try again after they finish.`,
-      }
+      return { ok: false, code: 'busy', count: running, message: copy('busy', running) }
     }
 
     const targets = buildTargets(host)
@@ -98,43 +112,63 @@ export function apply(ctx) {
       console.warn(`[dsh-restart] restart scheduled (helper pid=${String(helperPid)}); log: ${targets.logPath}`)
       return { ok: true, helperPid }
     } catch (error) {
-      const detail = messageOf(error)
-      return {
-        ok: false,
-        code: 'spawn-failed',
-        message: `无法启动重启助手：${detail} / Could not start the restart helper: ${detail}`,
-      }
+      return { ok: false, code: 'spawn-failed', message: copy('spawn', messageOf(error)) }
     }
   }
 
-  ctx.effect(() => ctx.commands.register({
-    name: 'restart',
-    // Third-party commands have no first-party i18n identity, so the copy is bilingual.
-    description: '重启 DeepSeek Harness 桌面版 / Restart the DeepSeek Harness desktop app',
-    // Direct human control: the command line and its result never become a model message.
-    handler: async () => {
-      const outcome = await requestRestart()
-      // An admitted success carries no text: the chat renders its own localized copy.
-      return outcome.ok === true ? { kind: 'success' } : { kind: 'error', text: outcome.message }
-    },
-  }), 'dsh-restart: /restart command')
+  const commandHandler = async () => {
+    const outcome = await requestRestart()
+    // An admitted success carries no text: the chat renders its own localized copy.
+    return outcome.ok === true ? { kind: 'success' } : { kind: 'error', text: outcome.message }
+  }
+
+  /**
+   * (Re)register `/restart` with the copy for one language.
+   *
+   * The command catalog is the only place a third-party command's description
+   * can change, so a language switch replaces the registration; the registry
+   * notifies every client, which refetches its catalog.
+   */
+  const registerCommand = (language) => {
+    if (state.disposed) return
+    if (state.disposeCommand !== undefined) {
+      state.disposeCommand()
+      state.disposeCommand = undefined
+    }
+    state.disposeCommand = ctx.commands.register({
+      name: 'restart',
+      description: messageFor(language, 'description'),
+      // Direct human control: the command line and its result never become a model message.
+      handler: commandHandler,
+    })
+  }
+
+  registerCommand(state.language)
 
   ctx.inject(['connection'], (scope) => {
     const connection = scope.get?.('connection') ?? scope.connection
     const register = connection?.fetch?.register
     if (typeof register !== 'function') {
-      console.warn('[dsh-restart] connection.fetch.register is unavailable; the sidebar row cannot reach the Host')
+      console.warn('[dsh-restart] connection.fetch.register is unavailable; the browser half cannot reach the Host')
       return
     }
+
+    const readBody = async (request) => {
+      try {
+        const text = await request.text()
+        return { ok: true, value: text.length > 0 ? JSON.parse(text) : null }
+      } catch {
+        return { ok: false, value: null }
+      }
+    }
+
     scope.effect(() => register({
-      path: ROUTE_PATH,
+      path: RESTART_ROUTE,
       methods: ['POST'],
       requestBody: 'buffered',
       fetch: async (request) => {
-        try {
-          const text = await request.text()
-          if (text.length > 0) JSON.parse(text)
-        } catch {
+        const body = await readBody(request)
+        if (body.ok !== true) {
           return json({ ok: false, error: { code: 'bad-json', message: 'the request body is not valid JSON' } })
         }
         const outcome = await requestRestart()
@@ -150,5 +184,23 @@ export function apply(ctx) {
           })
       },
     }), 'dsh-restart: restart route')
+
+    scope.effect(() => register({
+      path: LANGUAGE_ROUTE,
+      methods: ['POST'],
+      requestBody: 'buffered',
+      fetch: async (request) => {
+        const body = await readBody(request)
+        if (body.ok !== true) {
+          return json({ ok: false, error: { code: 'bad-json', message: 'the request body is not valid JSON' } })
+        }
+        const language = normalizeLanguage(body.value?.language)
+        if (language !== state.language) {
+          state.language = language
+          registerCommand(language)
+        }
+        return json({ ok: true, value: { language } })
+      },
+    }), 'dsh-restart: language route')
   })
 }

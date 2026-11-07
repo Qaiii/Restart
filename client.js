@@ -18,6 +18,7 @@ window.__ModuleLoader__.load({
     const h = React.createElement
     const NS = 'dsh-restart'
     const ROUTE = '/api/dsh-restart/restart'
+    const LANGUAGE_ROUTE = '/api/dsh-restart/locale'
 
     /**
      * Copy for the More-menu row in every locale the web client ships
@@ -190,8 +191,59 @@ window.__ModuleLoader__.load({
       }, label)
     }
 
+    /**
+     * Report the active UI language so the Host can re-register `/restart` with
+     * matching copy: a third-party command's catalog row is not localized by the
+     * browser, only first-party commands get a localized face.
+     */
+    function reportLanguage(ctx) {
+      const locale = ctx.locale
+      if (locale === undefined || locale === null || typeof locale.getLocale !== 'function') return
+
+      let reported = ''
+      let attempts = 0
+      let disposed = false
+
+      const send = async (language) => {
+        if (disposed) return
+        try {
+          const response = await fetch(LANGUAGE_ROUTE, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ language }),
+          })
+          if (!response.ok) throw new Error(`HTTP ${response.status}`)
+        } catch {
+          if (disposed) return
+          attempts += 1
+          // The Host may still be starting; retry a few times, then leave it to the next switch.
+          if (attempts <= 3) setTimeout(() => { void send(language) }, 1000 * attempts)
+        }
+      }
+
+      const report = () => {
+        const active = locale.getLocale()?.active
+        if (typeof active !== 'string' || active.length === 0 || active === reported) return
+        reported = active
+        attempts = 0
+        void send(active)
+      }
+
+      ctx.effect(() => {
+        report()
+        const unsubscribe = typeof locale.subscribe === 'function'
+          ? locale.subscribe(() => { report() })
+          : undefined
+        return () => {
+          disposed = true
+          if (typeof unsubscribe === 'function') unsubscribe()
+        }
+      }, 'dsh-restart: language report')
+    }
+
     function apply(ctx) {
       ctx.effect(() => ctx.locale.register(NS, dictionaries), 'dsh-restart: locale')
+      reportLanguage(ctx)
       ctx.slots.inject('sidebar.panellist.actions', () => ctx.slots.register({
         name: 'sidebar.panellist.actions',
         id: NS,

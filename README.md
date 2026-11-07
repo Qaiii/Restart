@@ -34,10 +34,14 @@ dsh plugin --profile desktop add -w D:\CodeProject\Deepseek-Harness-Plugins\ReSt
 界面文案跟随 UI 语言（Settings → General → Language，未设置时用浏览器语言），覆盖 web client 内置的 8 种语言：`en`、`zh`、`ja`、`es`、`fr`、`de`、`ru`、`pt`。
 
 - 侧边栏「更多」菜单里的行文案（重启 / Restart / 再起動 / Reiniciar / Redémarrer / Neustart / Перезапуск / Reiniciar）、「重启中…」「重启失败：」以及各类失败原因；
+- `/` 菜单里 `/restart` 那行右侧的**描述**：浏览器把当前语言 POST 到 `/api/dsh-restart/locale`，Host 收到后用对应语言重新注册该命令，命令目录变更再让浏览器刷新菜单；
+- `/restart` 的错误文案（忙碌、已在重启、非桌面版、非 Windows、助手启动失败）按同一语言给出；
 - 插件列表里的标题与描述（`locale/*.json`，8 个文件）；
 - `/restart` 成功后的会话执行记录（不带固定文案，由客户端渲染本地化的「已执行」）。
 
-Host 侧的命令**描述**（`/` 菜单里右侧那行）由命令目录提供；第三方命令没有首方 i18n 身份，所以保持中英双语，失败详情同样由 Host 给出中英双语。菜单行里的失败原因有错误码映射，会按 UI 语言本地化。
+命令名 `restart` 本身是 DSH 命令语法要求的小写 ASCII，缩写形式 `/restart` 不变，只是描述和提示语本地化。
+
+多语言文案分别放在两处：浏览器半的 `client.js` 字典（经 `ctx.locale.register`）与 Host 半的 `messages.js` 表（命令描述与错误文案）。
 
 ## 行为与保护
 
@@ -49,10 +53,11 @@ Host 侧的命令**描述**（`/` 菜单里右侧那行）由命令目录提供�
 
 ## 实现
 
-- `index.js`（Host 半）：注册 `/restart` 命令与 `POST /api/dsh-restart/restart` 路由；两者共用一个 `requestRestart()`，依次做平台判定、忙碌守卫、拉起 helper，成功后 1.2s 让宿主进程退出。
+- `index.js`（Host 半）：注册 `/restart` 命令与两个路由 `POST /api/dsh-restart/restart`、`POST /api/dsh-restart/locale`；命令与侧边栏行共用一个 `requestRestart()`，依次做平台判定、忙碌守卫、拉起 helper，成功后 1.2s 让宿主进程退出；收到语言上报后用该语言重新注册命令。
+- `messages.js`：Host 侧 8 种语言的命令描述与错误文案表，`normalizeLanguage()` 把 `zh-CN`、`pt-BR` 之类归一到受支持的语言。
 - `restart.js`：`detectHost()` 判定宿主；`buildHelperSource()` 生成一个自包含的 Node 脚本；`spawnRestartHelper()` 以 `ELECTRON_RUN_AS_NODE=1`、detached 方式拉起它，并先确认 helper 存活 400ms 才算重启已排期。
 - helper 时序：500ms 后 `SIGKILL` Electron 主进程 → 等主进程消失（最多 10s，未消失则放弃、绝不拉起新实例）→ 结束残留宿主进程 → 等 500ms 让单实例锁释放 → 以去掉 `ELECTRON_RUN_AS_NODE` 的环境启动应用（最多重试 3 次）。
-- `client.js`（浏览器半）：只往 `sidebar.panellist.actions` 注册一行 `MenuItemButton`，POST 上面的路由；8 种语言的字典通过 `ctx.locale.register` 注册，失败时按 Host 返回的错误码本地化后显示在该行上，菜单保持打开以便重试。
+- `client.js`（浏览器半）：往 `sidebar.panellist.actions` 注册一行 `MenuItemButton`，POST 重启路由；8 种语言的字典通过 `ctx.locale.register` 注册；监听 `ctx.locale` 的语言变化并上报给 Host；失败时按 Host 返回的错误码本地化后显示在该行上，菜单保持打开以便重试。
 
 ## 日志
 

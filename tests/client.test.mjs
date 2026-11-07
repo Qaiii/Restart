@@ -37,7 +37,7 @@ function makeReact() {
 }
 
 /** Build the client module and the slot registration it produced. */
-function boot() {
+function boot(options = {}) {
   const spec = loadBundle()
   assert.equal(spec.id, 'dsh-restart')
 
@@ -59,14 +59,15 @@ function boot() {
         localeRegistrations.push({ namespace, dictionaries })
         return () => {}
       },
+      ...options.locale,
     },
     slots: {
       inject(name, callback) {
         assert.equal(name, 'sidebar.panellist.actions')
         callback()
       },
-      register(options, component) {
-        registrations.push({ options, component })
+      register(options_, component) {
+        registrations.push({ options: options_, component })
         return () => {}
       },
     },
@@ -174,4 +175,28 @@ test('a dropped response counts as the restart having started', async () => {
   row.props.onSelect()
   await new Promise((resolve) => setTimeout(resolve, 0))
   assert.equal(dismissed, 1)
+})
+
+test('the active UI language is reported to the Host and re-reported on change', async () => {
+  const calls = []
+  globalThis.fetch = async (url, init) => {
+    calls.push({ url, body: JSON.parse(init.body) })
+    return { ok: true, status: 200, text: async () => '{}' }
+  }
+  let active = 'ja'
+  let notify = () => {}
+  boot({
+    locale: {
+      getLocale: () => ({ active }),
+      subscribe: (fn) => { notify = fn; return () => {} },
+    },
+  })
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  assert.deepEqual(calls[0], { url: '/api/dsh-restart/locale', body: { language: 'ja' } })
+
+  active = 'fr'
+  notify()
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  assert.deepEqual(calls[1], { url: '/api/dsh-restart/locale', body: { language: 'fr' } })
+  assert.equal(calls.length, 2)
 })

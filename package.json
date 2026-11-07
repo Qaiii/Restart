@@ -15,6 +15,7 @@
   },
   "files": [
     "index.js",
+    "messages.js",
     "restart.js",
     "client.js",
     "cordis.patch.yml",
@@ -24,7 +25,7 @@
   ],
   "scripts": {
     "test": "node --test --test-isolation=none tests/*.test.mjs",
-    "check": "node --check index.js && node --check restart.js && node --check client.js"
+    "check": "node --check index.js && node --check messages.js && node --check restart.js && node --check client.js"
   },
   "engines": {
     "dsh": ">=0.2.1-rc.5 <0.3.0"
