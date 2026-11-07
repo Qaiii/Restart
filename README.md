@@ -3,7 +3,7 @@
 DeepSeek Harness 桌面版的重启插件：侧边栏「更多」菜单里一行 **重启**，加上输入框命令 **`/restart`**，两条入口走同一个受保护的重启动作。
 
 - **菜单**：侧边栏底部 `⋮`（更多）菜单 → 「重启 / Restart」。
-- **命令**：输入 `/restart` 回车，会话里只出现一条命令结果「正在重启…」，不会变成模型消息；该命令同时出现在 `/` 斜杠菜单的 Commands 区。
+- **命令**：输入 `/restart` 回车，会话里只出现一条命令执行记录（文案随 UI 语言，不会变成模型消息）；该命令同时出现在 `/` 斜杠菜单的 Commands 区。
 - 重启 = 结束旧的桌面版进程树，等单实例锁释放后拉起同一个可执行文件，窗口自动回来。
 
 ## 安装（桌面版）
@@ -29,6 +29,16 @@ dsh plugin --profile desktop add -w D:\CodeProject\Deepseek-Harness-Plugins\ReSt
 1. 侧边栏 `⋮` → 「重启」。
 2. 输入框输入 `/restart` 回车。
 
+## 多语言
+
+界面文案跟随 UI 语言（Settings → General → Language，未设置时用浏览器语言），覆盖 web client 内置的 8 种语言：`en`、`zh`、`ja`、`es`、`fr`、`de`、`ru`、`pt`。
+
+- 侧边栏「更多」菜单里的行文案（重启 / Restart / 再起動 / Reiniciar / Redémarrer / Neustart / Перезапуск / Reiniciar）、「重启中…」「重启失败：」以及各类失败原因；
+- 插件列表里的标题与描述（`locale/*.json`，8 个文件）；
+- `/restart` 成功后的会话执行记录（不带固定文案，由客户端渲染本地化的「已执行」）。
+
+Host 侧的命令**描述**（`/` 菜单里右侧那行）由命令目录提供；第三方命令没有首方 i18n 身份，所以保持中英双语，失败详情同样由 Host 给出中英双语。菜单行里的失败原因有错误码映射，会按 UI 语言本地化。
+
 ## 行为与保护
 
 - 仅在 **Windows 桌面版**（Electron 宿主）可用；纯 `dsh web` / CLI 里执行 `/restart` 会返回错误文案，不会重启。
@@ -42,7 +52,7 @@ dsh plugin --profile desktop add -w D:\CodeProject\Deepseek-Harness-Plugins\ReSt
 - `index.js`（Host 半）：注册 `/restart` 命令与 `POST /api/dsh-restart/restart` 路由；两者共用一个 `requestRestart()`，依次做平台判定、忙碌守卫、拉起 helper，成功后 1.2s 让宿主进程退出。
 - `restart.js`：`detectHost()` 判定宿主；`buildHelperSource()` 生成一个自包含的 Node 脚本；`spawnRestartHelper()` 以 `ELECTRON_RUN_AS_NODE=1`、detached 方式拉起它，并先确认 helper 存活 400ms 才算重启已排期。
 - helper 时序：500ms 后 `SIGKILL` Electron 主进程 → 等主进程消失（最多 10s，未消失则放弃、绝不拉起新实例）→ 结束残留宿主进程 → 等 500ms 让单实例锁释放 → 以去掉 `ELECTRON_RUN_AS_NODE` 的环境启动应用（最多重试 3 次）。
-- `client.js`（浏览器半）：只往 `sidebar.panellist.actions` 注册一行 `MenuItemButton`，POST 上面的路由；失败时把错误文案换到该行上，菜单保持打开以便重试。
+- `client.js`（浏览器半）：只往 `sidebar.panellist.actions` 注册一行 `MenuItemButton`，POST 上面的路由；8 种语言的字典通过 `ctx.locale.register` 注册，失败时按 Host 返回的错误码本地化后显示在该行上，菜单保持打开以便重试。
 
 ## 日志
 

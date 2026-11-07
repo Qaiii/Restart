@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Reiniciar",
+    "description": "Adiciona uma linha Reiniciar ao menu Mais da barra lateral e um comando /restart que reinicia o aplicativo de desktop do DeepSeek Harness."
+  }
+}

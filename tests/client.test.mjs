@@ -80,12 +80,39 @@ test('the bundle registers one localized More-menu row', () => {
   assert.deepEqual(created.inject, ['slots', 'locale'])
   assert.equal(localeRegistrations.length, 1)
   assert.equal(localeRegistrations[0].namespace, 'dsh-restart')
-  assert.deepEqual(Object.keys(localeRegistrations[0].dictionaries).sort(), ['en', 'zh'])
+  assert.deepEqual(
+    Object.keys(localeRegistrations[0].dictionaries).sort(),
+    ['de', 'en', 'es', 'fr', 'ja', 'pt', 'ru', 'zh'],
+  )
   assert.equal(registrations.length, 1)
   assert.equal(registrations[0].options.name, 'sidebar.panellist.actions')
   assert.equal(registrations[0].options.id, 'dsh-restart')
   assert.equal(registrations[0].options.locale, 'dsh-restart')
   assert.equal(typeof registrations[0].component, 'function')
+})
+
+test('every locale dictionary carries the same keys', () => {
+  const { localeRegistrations } = boot()
+  const dictionaries = localeRegistrations[0].dictionaries
+  const reference = Object.keys(dictionaries.en).sort()
+  for (const [language, dictionary] of Object.entries(dictionaries)) {
+    assert.deepEqual(Object.keys(dictionary).sort(), reference, `locale ${language} is missing keys`)
+    for (const key of reference) {
+      assert.equal(typeof dictionary[key], 'string', `locale ${language} key ${key} is not a string`)
+      assert.ok(dictionary[key].trim().length > 0, `locale ${language} key ${key} is empty`)
+    }
+  }
+})
+
+test('every dictionary language has localized plugin metadata', () => {
+  const { localeRegistrations } = boot()
+  for (const language of Object.keys(localeRegistrations[0].dictionaries)) {
+    const meta = JSON.parse(readFileSync(new URL(`../locale/${language}.json`, import.meta.url), 'utf8'))
+    assert.equal(typeof meta.meta?.title, 'string', `locale/${language}.json needs meta.title`)
+    assert.ok(meta.meta.title.trim().length > 0, `locale/${language}.json meta.title is empty`)
+    assert.equal(typeof meta.meta?.description, 'string', `locale/${language}.json needs meta.description`)
+    assert.ok(meta.meta.description.trim().length > 0, `locale/${language}.json meta.description is empty`)
+  }
 })
 
 test('the row renders the restart label with the refresh icon', () => {
@@ -109,14 +136,14 @@ test('a successful request dismisses the menu', async () => {
   assert.equal(dismissed, 1)
 })
 
-test('a refused restart keeps the menu open and shows the Host message', async () => {
+test('a refused restart keeps the menu open and localizes the Host code', async () => {
   const { react, registrations } = boot()
   let dismissed = 0
   globalThis.fetch = async () => ({
     status: 200,
     text: async () => JSON.stringify({
       ok: false,
-      error: { code: 'busy', message: '有 1 个任务正在运行，已取消重启。' },
+      error: { code: 'busy', count: 1, message: '有 1 个任务正在运行，已取消重启。' },
     }),
   })
   const row = registrations[0].component({ t: (key) => key, onDismiss: () => { dismissed += 1 } })
@@ -124,7 +151,19 @@ test('a refused restart keeps the menu open and shows the Host message', async (
   await new Promise((resolve) => setTimeout(resolve, 0))
   assert.equal(dismissed, 0)
   assert.equal(react.state.busy, false)
-  assert.equal(react.state.error, '有 1 个任务正在运行，已取消重启。')
+  assert.equal(react.state.error, 'errorBusy')
+})
+
+test('an unmapped failure falls back to the Host message', async () => {
+  const { react, registrations } = boot()
+  globalThis.fetch = async () => ({
+    status: 200,
+    text: async () => JSON.stringify({ ok: false, error: { code: 'internal', message: 'boom' } }),
+  })
+  const row = registrations[0].component({ t: (key) => key, onDismiss: () => {} })
+  row.props.onSelect()
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  assert.equal(react.state.error, 'failedboom')
 })
 
 test('a dropped response counts as the restart having started', async () => {

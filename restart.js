@@ -60,28 +60,30 @@ export function detectHost(options = {}) {
     return {
       ok: false,
       code: 'unsupported-platform',
-      message: '重启目前只支持 Windows 桌面版 DSH。',
+      message: '重启目前只支持 Windows 桌面版。 / Restart is only implemented for the Windows desktop app.',
     }
   }
   if (env === null || typeof env !== 'object' || env.ELECTRON_RUN_AS_NODE !== '1') {
     return {
       ok: false,
       code: 'unsupported-host',
-      message: '当前不是 DSH 桌面版进程，无法重启应用。',
+      message: '当前不是 DeepSeek Harness 桌面版进程，无法重启应用。'
+        + ' / This is not the DeepSeek Harness desktop app, so it cannot restart itself.',
     }
   }
   if (!Number.isInteger(ppid) || ppid <= 0) {
     return {
       ok: false,
       code: 'unsupported-host',
-      message: '无法定位桌面版主进程，已取消重启。',
+      message: '无法定位桌面版主进程，已取消重启。 / Could not locate the desktop main process; restart cancelled.',
     }
   }
   if (typeof execPath !== 'string' || !/\.exe$/iu.test(execPath)) {
     return {
       ok: false,
       code: 'unsupported-host',
-      message: '无法定位 DSH 桌面版可执行文件，已取消重启。',
+      message: '无法定位 DeepSeek Harness 桌面版可执行文件，已取消重启。'
+        + ' / Could not locate the DeepSeek Harness desktop executable; restart cancelled.',
     }
   }
   return { ok: true, exe: execPath, mainPid: ppid, hostPid: pid }

@@ -67,7 +67,13 @@ export function apply(ctx) {
    * @returns {Promise<{ ok: true, helperPid?: number } | { ok: false, code: string, message: string }>}
    */
   const requestRestart = async () => {
-    if (state.active) return { ok: false, code: 'already-restarting', message: '重启已在进行中。' }
+    if (state.active) {
+      return {
+        ok: false,
+        code: 'already-restarting',
+        message: '重启已在进行中。/ A restart is already in progress.',
+      }
+    }
 
     const host = detectHost()
     if (host.ok !== true) return { ok: false, code: host.code, message: host.message }
@@ -77,7 +83,10 @@ export function apply(ctx) {
       return {
         ok: false,
         code: 'busy',
-        message: `有 ${running} 个任务正在运行，已取消重启。请等待任务结束后重试。`,
+        count: running,
+        // Host strings reach the conversation verbatim, so they carry both baseline locales.
+        message: `有 ${running} 个任务正在运行，已取消重启。请等待任务结束后重试。`
+          + ` / ${running} running task(s); restart cancelled. Try again after they finish.`,
       }
     }
 
@@ -89,7 +98,12 @@ export function apply(ctx) {
       console.warn(`[dsh-restart] restart scheduled (helper pid=${String(helperPid)}); log: ${targets.logPath}`)
       return { ok: true, helperPid }
     } catch (error) {
-      return { ok: false, code: 'spawn-failed', message: `无法启动重启助手：${messageOf(error)}` }
+      const detail = messageOf(error)
+      return {
+        ok: false,
+        code: 'spawn-failed',
+        message: `无法启动重启助手：${detail} / Could not start the restart helper: ${detail}`,
+      }
     }
   }
 
@@ -100,9 +114,8 @@ export function apply(ctx) {
     // Direct human control: the command line and its result never become a model message.
     handler: async () => {
       const outcome = await requestRestart()
-      return outcome.ok === true
-        ? { kind: 'success', text: '正在重启…' }
-        : { kind: 'error', text: outcome.message }
+      // An admitted success carries no text: the chat renders its own localized copy.
+      return outcome.ok === true ? { kind: 'success' } : { kind: 'error', text: outcome.message }
     },
   }), 'dsh-restart: /restart command')
 
@@ -127,7 +140,14 @@ export function apply(ctx) {
         const outcome = await requestRestart()
         return outcome.ok === true
           ? json({ ok: true, value: { scheduled: true } })
-          : json({ ok: false, error: { code: outcome.code, message: outcome.message } })
+          : json({
+            ok: false,
+            error: {
+              code: outcome.code,
+              message: outcome.message,
+              ...outcome.count === undefined ? {} : { count: outcome.count },
+            },
+          })
       },
     }), 'dsh-restart: restart route')
   })

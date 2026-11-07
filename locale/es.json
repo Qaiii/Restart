@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Reiniciar",
+    "description": "Añade una fila Reiniciar al menú Más de la barra lateral y un comando /restart que reinicia la aplicación de escritorio de DeepSeek Harness."
+  }
+}

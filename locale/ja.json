@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "再起動",
+    "description": "サイドバーの「その他」メニューに「再起動」行を追加し、/restart コマンドで DeepSeek Harness デスクトップ版を再起動します。"
+  }
+}

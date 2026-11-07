@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Neustart",
+    "description": "Fügt dem Mehr-Menü der Seitenleiste eine Zeile „Neustart“ und einen Befehl /restart hinzu, der die DeepSeek Harness-Desktop-App neu startet."
+  }
+}

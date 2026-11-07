@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Redémarrer",
+    "description": "Ajoute une ligne Redémarrer au menu Plus de la barre latérale et une commande /restart qui redémarre l'application de bureau DeepSeek Harness."
+  }
+}
