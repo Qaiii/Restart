@@ -21,12 +21,12 @@ window.__ModuleLoader__.load({
     /** Copy for the More-menu row; the missing locales fall back to English. */
     const dictionaries = {
       en: {
-        row: 'Restart DSH',
+        row: 'Restart',
         busy: 'Restarting DSH…',
         failed: 'Restart failed: ',
       },
       zh: {
-        row: '重启 DSH',
+        row: '重启',
         busy: '正在重启…',
         failed: '重启失败：',
       },
