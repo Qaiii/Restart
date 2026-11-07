@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "Restart DSH",
-    "description": "Adds a Restart DSH row to the sidebar More menu and a /restart command that restarts the desktop app in place."
+    "description": "Adds a Restart row to the sidebar More menu and a /restart command that restarts the DeepSeek Harness desktop app in place."
   }
 }

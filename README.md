@@ -3,7 +3,7 @@
 DeepSeek Harness 桌面版的重启插件：侧边栏「更多」菜单里一行 **重启**，加上输入框命令 **`/restart`**，两条入口走同一个受保护的重启动作。
 
 - **菜单**：侧边栏底部 `⋮`（更多）菜单 → 「重启 / Restart」。
-- **命令**：输入 `/restart` 回车，会话里只出现一条命令结果「正在重启 DSH…」，不会变成模型消息；该命令同时出现在 `/` 斜杠菜单的 Commands 区。
+- **命令**：输入 `/restart` 回车，会话里只出现一条命令结果「正在重启…」，不会变成模型消息；该命令同时出现在 `/` 斜杠菜单的 Commands 区。
 - 重启 = 结束旧的桌面版进程树，等单实例锁释放后拉起同一个可执行文件，窗口自动回来。
 
 ## 安装（桌面版）
@@ -63,4 +63,4 @@ node --check index.js; node --check restart.js; node --check client.js
 node --test --test-isolation=none tests/*.test.mjs
 ```
 
-已知限制：DSH 桌面版 Windows 标题栏那个原生菜单（application / edit）由 Electron 主进程写死，插件无法往里加项，所以菜单入口放在侧边栏「更多」菜单；命令名只接受小写，写作 `/restart`。
+已知限制：DeepSeek Harness 桌面版 Windows 标题栏那个原生菜单（application / edit）由 Electron 主进程写死，插件无法往里加项，所以菜单入口放在侧边栏「更多」菜单；命令名只接受小写，写作 `/restart`。

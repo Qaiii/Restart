@@ -96,12 +96,12 @@ export function apply(ctx) {
   ctx.effect(() => ctx.commands.register({
     name: 'restart',
     // Third-party commands have no first-party i18n identity, so the copy is bilingual.
-    description: '重启 DSH 桌面版 / Restart the DSH desktop app',
+    description: '重启 DeepSeek Harness 桌面版 / Restart the DeepSeek Harness desktop app',
     // Direct human control: the command line and its result never become a model message.
     handler: async () => {
       const outcome = await requestRestart()
       return outcome.ok === true
-        ? { kind: 'success', text: '正在重启 DSH…' }
+        ? { kind: 'success', text: '正在重启…' }
         : { kind: 'error', text: outcome.message }
     },
   }), 'dsh-restart: /restart command')

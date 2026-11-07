@@ -22,7 +22,7 @@ window.__ModuleLoader__.load({
     const dictionaries = {
       en: {
         row: 'Restart',
-        busy: 'Restarting DSH…',
+        busy: 'Restarting…',
         failed: 'Restart failed: ',
       },
       zh: {

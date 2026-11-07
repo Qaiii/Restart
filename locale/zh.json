@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "重启 DSH",
-    "description": "在侧边栏「更多」菜单加一行「重启 DSH」，并提供 /restart 命令，立即重启桌面版应用。"
+    "description": "在侧边栏「更多」菜单加一行「重启」，并提供 /restart 命令，立即重启 DeepSeek Harness 桌面版应用。"
   }
 }
