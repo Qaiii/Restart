@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="64" height="64" fill="none" role="img" aria-label="Restart DSH">
+  <circle cx="12" cy="12" r="8.1" stroke="#247bbf" stroke-width="1.7" stroke-linecap="round" stroke-dasharray="38 14" />
+  <path d="M12 3.9v4.2M12 3.9l3.1 1.8M12 3.9 8.9 5.7" stroke="#247bbf" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M9.7 12.1h4.6M11.2 10.6l1.5 1.5-1.5 1.5" stroke="#247bbf" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" />
+</svg>

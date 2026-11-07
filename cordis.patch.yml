@@ -1,0 +1,5 @@
+# dsh-restart bundle layer: one Host row. The Web client loads this package's
+# `./client` bundle as the browser half because package.json declares `dsh.client`.
+- insert:
+    - id: dsh-restart
+      name: dsh-restart

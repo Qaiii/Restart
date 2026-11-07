@@ -1,0 +1,7 @@
+# Installed dependencies and local tooling artifacts.
+node_modules/
+
+# Restart helper diagnostics and editor/OS noise.
+*.log
+.DS_Store
+Thumbs.db
