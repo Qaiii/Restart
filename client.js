@@ -28,6 +28,8 @@ window.__ModuleLoader__.load({
     const dictionaries = {
       en: {
         row: 'Restart',
+        commandLabel: "Restart",
+        commandDescription: "Restart the DeepSeek Harness desktop app",
         busy: 'Restarting…',
         failed: 'Restart failed: ',
         errorBusy: '{count} running task(s); restart cancelled. Try again after they finish.',
@@ -38,6 +40,8 @@ window.__ModuleLoader__.load({
       },
       zh: {
         row: '重启',
+        commandLabel: "重启",
+        commandDescription: "重启 DeepSeek Harness 桌面版",
         busy: '正在重启…',
         failed: '重启失败：',
         errorBusy: '有 {count} 个任务正在运行，已取消重启。请等待任务结束后重试。',
@@ -48,6 +52,8 @@ window.__ModuleLoader__.load({
       },
       ja: {
         row: '再起動',
+        commandLabel: "再起動",
+        commandDescription: "DeepSeek Harness デスクトップ版を再起動",
         busy: '再起動中…',
         failed: '再起動に失敗しました：',
         errorBusy: '{count} 件のタスクが実行中です。再起動を中止しました。完了後に再試行してください。',
@@ -58,6 +64,8 @@ window.__ModuleLoader__.load({
       },
       es: {
         row: 'Reiniciar',
+        commandLabel: "Reiniciar",
+        commandDescription: "Reiniciar la aplicación de escritorio de DeepSeek Harness",
         busy: 'Reiniciando…',
         failed: 'Error al reiniciar: ',
         errorBusy: 'Hay {count} tarea(s) en ejecución; reinicio cancelado. Inténtalo de nuevo cuando terminen.',
@@ -68,6 +76,8 @@ window.__ModuleLoader__.load({
       },
       fr: {
         row: 'Redémarrer',
+        commandLabel: "Redémarrer",
+        commandDescription: "Redémarrer l'application de bureau DeepSeek Harness",
         busy: 'Redémarrage…',
         failed: 'Échec du redémarrage : ',
         errorBusy: '{count} tâche(s) en cours ; redémarrage annulé. Réessayez une fois terminées.',
@@ -78,6 +88,8 @@ window.__ModuleLoader__.load({
       },
       de: {
         row: 'Neustart',
+        commandLabel: "Neustart",
+        commandDescription: "DeepSeek Harness-Desktop-App neu starten",
         busy: 'Neustart läuft…',
         failed: 'Neustart fehlgeschlagen: ',
         errorBusy: '{count} laufende Aufgabe(n); Neustart abgebrochen. Versuchen Sie es nach dem Ende erneut.',
@@ -88,6 +100,8 @@ window.__ModuleLoader__.load({
       },
       ru: {
         row: 'Перезапуск',
+        commandLabel: "Перезапуск",
+        commandDescription: "Перезапустить настольное приложение DeepSeek Harness",
         busy: 'Перезапуск…',
         failed: 'Не удалось перезапустить: ',
         errorBusy: 'Выполняется задач: {count}; перезапуск отменён. Повторите попытку после завершения.',
@@ -98,6 +112,8 @@ window.__ModuleLoader__.load({
       },
       pt: {
         row: 'Reiniciar',
+        commandLabel: "Reiniciar",
+        commandDescription: "Reiniciar o aplicativo de desktop do DeepSeek Harness",
         busy: 'Reiniciando…',
         failed: 'Falha ao reiniciar: ',
         errorBusy: 'Há {count} tarefa(s) em execução; reinício cancelado. Tente novamente após terminarem.',
@@ -191,6 +207,62 @@ window.__ModuleLoader__.load({
       }, label)
     }
 
+    /** Translate one dictionary key in the active UI language. */
+    const translate = (key, params = {}) => {
+      const active = ctxLocale()?.getLocale?.()?.active
+      const base = typeof active === 'string' ? active.toLowerCase().split('-')[0] : 'en'
+      const table = dictionaries[base] ?? dictionaries.en
+      let text = table[key] ?? dictionaries.en[key] ?? key
+      for (const [name, value] of Object.entries(params)) text = text.split(`{${name}}`).join(String(value))
+      return text
+    }
+
+    /** Locale service, or undefined in a profile that does not install it. */
+    let localeService
+    function ctxLocale() {
+      return localeService
+    }
+
+    /** Transient toast for failures raised from the command line. */
+    const toast = { text: '', listeners: new Set(), timer: undefined }
+    function pushToast(text) {
+      toast.text = text
+      for (const listener of toast.listeners) listener()
+      if (toast.timer !== undefined) clearTimeout(toast.timer)
+      toast.timer = setTimeout(() => {
+        toast.timer = undefined
+        toast.text = ''
+        for (const listener of toast.listeners) listener()
+      }, 6000)
+    }
+    function subscribeToast(listener) {
+      toast.listeners.add(listener)
+      return () => { toast.listeners.delete(listener) }
+    }
+    function RestartToast() {
+      const text = React.useSyncExternalStore(subscribeToast, () => toast.text, () => '')
+      if (text === '') return null
+      return h('div', {
+        role: 'status',
+        style: {
+          position: 'fixed',
+          left: '50%',
+          bottom: '96px',
+          transform: 'translateX(-50%)',
+          zIndex: 9999,
+          maxWidth: 'min(560px, 80vw)',
+          padding: '8px 14px',
+          borderRadius: '10px',
+          fontSize: '12.5px',
+          lineHeight: '1.5',
+          background: 'var(--dsw-alias-toast-bg, #353638)',
+          color: 'var(--dsw-alias-toast-label, #ffffff)',
+          boxShadow: '0 8px 24px rgba(0, 0, 0, 0.28)',
+          pointerEvents: 'none',
+        },
+      }, text)
+    }
+
     /**
      * Report the active UI language so the Host can re-register `/restart` with
      * matching copy: a third-party command's catalog row is not localized by the
@@ -242,6 +314,7 @@ window.__ModuleLoader__.load({
     }
 
     function apply(ctx) {
+      localeService = ctx.locale
       ctx.effect(() => ctx.locale.register(NS, dictionaries), 'dsh-restart: locale')
       reportLanguage(ctx)
       ctx.slots.inject('sidebar.panellist.actions', () => ctx.slots.register({
@@ -249,8 +322,48 @@ window.__ModuleLoader__.load({
         id: NS,
         locale: NS,
       }, RestartRow))
+      ctx.slots.inject('conversation.input.overlay', () => ctx.slots.register({
+        name: 'conversation.input.overlay',
+        id: NS + '-toast',
+      }, RestartToast))
+
+      /*
+       * /restart is a client command contribution, not a Host command: only
+       * contributions carry the icon + localized label + alias + description
+       * face the built-in commands show, and a contribution may not share a
+       * name with a Host command.
+       */
+      ctx.effect(() => {
+        const dispose = ctx.commandUi.register({
+          name: 'restart',
+          available: () => true,
+          label: () => translate('commandLabel'),
+          description: () => translate('commandDescription'),
+          icon: IconRefreshOutlineRegular,
+          ui: {
+            kind: 'action',
+            run: () => {
+              postRestart().then(
+                (outcome) => {
+                  if (outcome.ok) return
+                  pushToast(describeFailure(translate, outcome))
+                },
+                () => {
+                  // A restart tears the Host down mid-response, which is the success path.
+                },
+              )
+            },
+          },
+        })
+        return () => {
+          dispose()
+          if (toast.timer !== undefined) clearTimeout(toast.timer)
+          toast.timer = undefined
+          toast.text = ''
+        }
+      }, 'dsh-restart: slash command')
     }
 
-    return { inject: ['slots', 'locale'], apply }
+    return { inject: ['slots', 'locale', 'commandUi'], apply }
   },
 })

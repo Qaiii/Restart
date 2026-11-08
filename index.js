@@ -1,10 +1,11 @@
 /**
  * Host half of dsh-restart.
  *
- * Registers one human `/restart` command and the HTTP entry points the browser
- * half uses: one restart request and one locale report. The browser reports its
- * active UI language so the Host can re-register the command with matching copy
- * — third-party command catalog rows are not localized by the browser itself.
+ * Registers the HTTP entry points the browser half uses: one restart request
+ * and one locale report. The `/restart` slash command itself is a **client
+ * contribution** (see client.js), because only client contributions can carry
+ * the icon + localized label + alias + description face that built-in commands
+ * show; third-party host commands can only carry a plain name and description.
  * The restart itself lives in `restart.js`.
  *
  * @module dsh-restart/index
@@ -21,9 +22,6 @@ import {
 
 /** Package name; the bundle row id in cordis.patch.yml is `dsh-restart` too. */
 export const name = 'dsh-restart'
-
-/** The slash-command registry must exist before the command can be offered. */
-export const inject = ['commands']
 
 /** Browser half's entry points. */
 const RESTART_ROUTE = '/api/dsh-restart/restart'
@@ -42,15 +40,13 @@ function messageOf(error) {
  */
 export function apply(ctx) {
   /**
-   * Plugin state: one restart at a time, one pending exit timer, the language the
-   * browser last reported, and the current command registration.
+   * Plugin state: one restart at a time, one pending exit timer, and the
+   * language the browser last reported (route errors are localized from it).
    */
   const state = {
     active: false,
     timer: undefined,
-    disposed: false,
     language: FALLBACK_LANGUAGE,
-    disposeCommand: undefined,
   }
 
   /** Localized copy in the language the browser last reported. */
@@ -62,14 +58,6 @@ export function apply(ctx) {
       state.timer = undefined
     }
   }, 'dsh-restart: pending exit timer')
-
-  ctx.effect(() => () => {
-    state.disposed = true
-    if (state.disposeCommand !== undefined) {
-      state.disposeCommand()
-      state.disposeCommand = undefined
-    }
-  }, 'dsh-restart: command registration')
 
   /** Sessions whose Agent is mid-turn; a restart would interrupt them. */
   const runningSessions = async () => {
@@ -115,35 +103,6 @@ export function apply(ctx) {
       return { ok: false, code: 'spawn-failed', message: copy('spawn', messageOf(error)) }
     }
   }
-
-  const commandHandler = async () => {
-    const outcome = await requestRestart()
-    // An admitted success carries no text: the chat renders its own localized copy.
-    return outcome.ok === true ? { kind: 'success' } : { kind: 'error', text: outcome.message }
-  }
-
-  /**
-   * (Re)register `/restart` with the copy for one language.
-   *
-   * The command catalog is the only place a third-party command's description
-   * can change, so a language switch replaces the registration; the registry
-   * notifies every client, which refetches its catalog.
-   */
-  const registerCommand = (language) => {
-    if (state.disposed) return
-    if (state.disposeCommand !== undefined) {
-      state.disposeCommand()
-      state.disposeCommand = undefined
-    }
-    state.disposeCommand = ctx.commands.register({
-      name: 'restart',
-      description: messageFor(language, 'description'),
-      // Direct human control: the command line and its result never become a model message.
-      handler: commandHandler,
-    })
-  }
-
-  registerCommand(state.language)
 
   ctx.inject(['connection'], (scope) => {
     const connection = scope.get?.('connection') ?? scope.connection
@@ -195,12 +154,10 @@ export function apply(ctx) {
           return json({ ok: false, error: { code: 'bad-json', message: 'the request body is not valid JSON' } })
         }
         const language = normalizeLanguage(body.value?.language)
-        if (language !== state.language) {
-          state.language = language
-          registerCommand(language)
-        }
+        if (language !== state.language) state.language = language
         return json({ ok: true, value: { language } })
       },
     }), 'dsh-restart: language route')
   })
 }
+
